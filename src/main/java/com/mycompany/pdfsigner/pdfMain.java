@@ -77,11 +77,10 @@ public class pdfMain {
         //System.out.println("private key format: " + pk.getFormat());
         //System.out.println("privatekey algorithm: " + pk.getAlgorithm());
         //assinar e verificar parametros da assinatura usando Itext
-//        Itext.signItext(pdfPATH, savePdfPATH, chain, pk, DigestAlgorithms.SHA1, provider.getName(), PdfSigner.CryptoStandard.CMS, "test Signature using itext", "Covilha");
+        Itext.signItext(pdfPATH, savePdfPATH, chain, pk, DigestAlgorithms.SHA1, provider.getName(), PdfSigner.CryptoStandard.CMS, "test Signature using itext", "Covilha");
 //        Itext.checkSignatureItext();
         //pdfbox 
-        fos = new FileOutputStream(savePdfPATH_pdfbox);
-        PdfBox.signPDF(ks, fis, "123456", fos);
+        PdfBox.signPDF();
 
     }
 
