@@ -102,21 +102,8 @@ public class PdfBox {
 
         sig.setSignDate(Calendar.getInstance());
 
-        //parte visual da assinatura
-        PDAcroForm acroForm = new PDAcroForm(doc);
-        doc.getDocumentCatalog().setAcroForm(acroForm);
-       
-        PDSignatureField sigField = new PDSignatureField(acroForm);
-        PDAnnotationWidget widget = (PDAnnotationWidget) sigField.getWidgets().get(0);
-       
-        PDRectangle rect = new PDRectangle(50, 650, 200, 650);
-        widget.setRectangle(rect);
-        
-        acroForm.getFields().add(sigField);
 
-        
-        
-        
+
         //External signing
         doc.addSignature(sig);
         ExternalSigningSupport externalSigning = doc.saveIncrementalForExternalSigning(fos);            //ver jdocs desta funcao!!!!!
