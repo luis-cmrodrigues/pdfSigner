@@ -5,6 +5,11 @@
  */
 package com.mycompany.pdfsigner;
 
+import java.awt.Color;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Rectangle2D;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -29,16 +34,30 @@ import java.util.Arrays;
 import java.util.List;
 
 import java.util.Calendar;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
+import org.apache.pdfbox.pdmodel.common.PDStream;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.ExternalSigningSupport;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
+import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
 import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
+import org.apache.pdfbox.pdmodel.interactive.form.PDField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
-import org.apache.pdfbox.pdmodel.interactive.form.PDTerminalField;
+import org.apache.pdfbox.util.Matrix;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1EncodableVector;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
@@ -102,10 +121,33 @@ public class PdfBox {
 
         sig.setSignDate(Calendar.getInstance());
 
+        //signature options para fins de teste, aqui nao esta a ser usada
+        SignatureOptions sigOps = new SignatureOptions();
 
+        //------------------------  parte da visual signature
+        PDAcroForm acroForm = doc.getDocumentCatalog().getAcroForm();
+        if (acroForm == null) {
+            System.out.println("WARNING: PDAcroForm is NULL");
+            acroForm = new PDAcroForm(doc);
+        }
+        PDRectangle rect = createSignatureRectangle(doc, new Rectangle2D.Float(100, 200, 150, 50));
 
+        if (acroForm.getFields().isEmpty()) {
+            acroForm.getCOSObject().removeItem(COSName.NEED_APPEARANCES);
+        }
+
+        if (createVisibleSignatureTemplate(doc, 0, rect) == null) {
+            System.out.println("ERRO: a gerar a visible signature");
+        } else {
+
+            sigOps.setVisualSignature(createVisibleSignatureTemplate(doc, 0, rect));
+            sigOps.setPage(0);
+            doc.addSignature(sig, sigOps);
+        }
+
+        //------------------------
         //External signing
-        doc.addSignature(sig);
+        //doc.addSignature(sig);
         ExternalSigningSupport externalSigning = doc.saveIncrementalForExternalSigning(fos);            //ver jdocs desta funcao!!!!!
         InputStream sigIs = externalSigning.getContent();                                           // obter um byte[] que e a assinatura em forma CMS
 
@@ -113,7 +155,11 @@ public class PdfBox {
         byte[] cmsSignature = sign(sigIs);
 
         //aplicar a assinatura em cms ao PDF
+        System.out.println("tamanho do CMS container: " + cmsSignature.length);
+        System.out.println("prefered CMS sig size: " + Integer.toString(sigOps.getPreferredSignatureSize()));
+        System.out.println("deafault CMS sig size: " + Integer.toString(sigOps.DEFAULT_SIGNATURE_SIZE));
         externalSigning.setSignature(cmsSignature);
+
         //fechar o inputstream e o ficheiro pdf
         sigIs.close();
         doc.close();
@@ -294,6 +340,172 @@ public class PdfBox {
             default:
                 return new ASN1ObjectIdentifier(algorithm);
         }
+    }
+
+    private static PDRectangle createSignatureRectangle(PDDocument doc, Rectangle2D humanRect) {
+        float x = (float) humanRect.getX();
+        float y = (float) humanRect.getY();
+        float width = (float) humanRect.getWidth();
+        float height = (float) humanRect.getHeight();
+        PDPage page = doc.getPage(0);
+        PDRectangle pageRect = page.getCropBox();
+        PDRectangle rect = new PDRectangle();
+        // signing should be at the same position regardless of page rotation.
+
+        switch (page.getRotation()) {
+            case 90:
+                rect.setLowerLeftY(x);
+                rect.setUpperRightY(x + width);
+                rect.setLowerLeftX(y);
+                rect.setUpperRightX(y + height);
+                break;
+            case 180:
+                rect.setUpperRightX(pageRect.getWidth() - x);
+                rect.setLowerLeftX(pageRect.getWidth() - x - width);
+                rect.setLowerLeftY(y);
+                rect.setUpperRightY(y + height);
+                break;
+            case 270:
+                rect.setLowerLeftY(pageRect.getHeight() - x - width);
+                rect.setUpperRightY(pageRect.getHeight() - x);
+                rect.setLowerLeftX(pageRect.getWidth() - y - height);
+                rect.setUpperRightX(pageRect.getWidth() - y);
+                break;
+            case 0:
+            default:
+                rect.setLowerLeftX(x);
+                rect.setUpperRightX(x + width);
+                rect.setLowerLeftY(pageRect.getHeight() - y - height);
+                rect.setUpperRightY(pageRect.getHeight() - y);
+                break;
+        }
+        return rect;
+    }
+
+    private static InputStream createVisibleSignatureTemplate(PDDocument srcDoc, int pageNum, PDRectangle rect) {
+        File imageFile = new File("bkg.jpg");
+
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(srcDoc.getPage(pageNum).getMediaBox());
+            doc.addPage(page);
+            PDAcroForm acroForm = new PDAcroForm(doc);
+            doc.getDocumentCatalog().setAcroForm(acroForm);
+            PDSignatureField signatureField = new PDSignatureField(acroForm);
+            PDAnnotationWidget widget = signatureField.getWidgets().get(0);
+
+            //criação do signature field para introdução no pdf
+            List<PDField> acroFormFields = acroForm.getFields();
+            acroForm.setSignaturesExist(true);
+            acroForm.setAppendOnly(true);
+            acroForm.getCOSObject().setDirect(true);
+            acroFormFields.add(signatureField);
+
+            widget.setRectangle(rect);
+
+            //criação da holder form
+            PDStream stream = new PDStream(doc);
+            PDFormXObject form = new PDFormXObject(stream);
+            PDResources res = new PDResources();
+            form.setResources(res);
+            form.setFormType(1);
+            PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
+            float height = bbox.getHeight();
+            Matrix initialScale = null;
+
+            //swtich case para a rotação da página/assinatura
+            switch (srcDoc.getPage(pageNum).getRotation()) {
+                case 90:
+                    form.setMatrix(AffineTransform.getQuadrantRotateInstance(1));
+                    initialScale = Matrix.getScaleInstance(bbox.getWidth() / bbox.getHeight(), bbox.getHeight() / bbox.getWidth());
+                    height = bbox.getWidth();
+                    break;
+                case 180:
+                    form.setMatrix(AffineTransform.getQuadrantRotateInstance(2));
+                    break;
+                case 270:
+                    form.setMatrix(AffineTransform.getQuadrantRotateInstance(3));
+                    initialScale = Matrix.getScaleInstance(bbox.getWidth() / bbox.getHeight(), bbox.getHeight() / bbox.getWidth());
+                    height = bbox.getWidth();
+                    break;
+                case 0:
+                default:
+                    break;
+            }
+
+            form.setBBox(bbox);
+            PDFont font = PDType1Font.HELVETICA_BOLD;
+
+            //criação do AppearanceDictionary
+            PDAppearanceDictionary appearance = new PDAppearanceDictionary();
+            appearance.getCOSObject().setDirect(true);
+            PDAppearanceStream appearanceStream = new PDAppearanceStream(form.getCOSObject());
+            appearance.setNormalAppearance(appearanceStream);
+            widget.setAppearance(appearance);
+
+            if (widget.isInvisible() == true) {
+                System.out.println("WARNING: invisible widget");
+            }
+            if (widget.isPrinted() == false) {
+                System.out.println("WARNING: widget not printed");
+            }
+
+            //content stream part
+            try (PDPageContentStream cs = new PDPageContentStream(doc, appearanceStream)) {
+                // for 90Ã‚Â° and 270Ã‚Â° scale ratio of width / height
+                // not really sure about this
+                // why does scale have no effect when done in the form matrix???
+                if (initialScale != null) {
+                    cs.transform(initialScale);
+                }
+
+                // show background (just for debugging, to see the rect size + position)
+                cs.setNonStrokingColor(Color.yellow);
+                cs.addRect(0, 0, 10000, 10000);
+                cs.fill();
+
+                // show background image
+                // save and restore graphics if the image is too large and needs to be scaled
+                //cs.saveGraphicsState();
+                //cs.transform(Matrix.getScaleInstance(0.25f, 0.25f));
+                PDImageXObject img = PDImageXObject.createFromFileByExtension(imageFile, doc);
+                //confirmar que carregou imagem
+                System.out.println("Image height: " + Integer.toString(img.getHeight()) + " Image width: " + Integer.toString(img.getWidth()));
+
+                cs.drawImage(img, 50, 50);
+                //cs.restoreGraphicsState();
+
+                // show text
+                float fontSize = 10;
+                float leading = fontSize * 1.5f;
+                cs.beginText();
+                cs.setFont(font, fontSize);
+                cs.setNonStrokingColor(Color.black);
+                cs.newLineAtOffset(fontSize, height - leading);
+                cs.setLeading(leading);
+                cs.showText("(Signature very wide line 1)");
+                cs.newLine();
+                cs.showText("(Signature very wide line 2)");
+                cs.newLine();
+                cs.showText("(Signature very wide line 3)");
+                cs.endText();
+            } catch (Exception e) {
+                System.out.println("ERRO: NA PARTE DO CONTENT STREAM");
+                Logger.getLogger(PdfBox.class.getName()).log(Level.SEVERE, null, e);
+            }
+
+            // no need to set annotations and /P entry
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            doc.save(baos);
+            return new ByteArrayInputStream(baos.toByteArray());
+
+        } catch (Exception e) {
+            System.out.println("ERRO: NO FIRST TRY DA VISUAL SIGNATURE");
+            Logger.getLogger(PdfBox.class.getName()).log(Level.SEVERE, null, e);
+        }
+
+        System.out.println("--- WARNING --- CreateVisibleSignature returning NULL");
+        return null;
+
     }
 
 }
