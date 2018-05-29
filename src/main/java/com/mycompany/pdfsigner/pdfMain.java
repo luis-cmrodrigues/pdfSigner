@@ -40,12 +40,14 @@ public class pdfMain {
     public static final String savePdfPATH_pdfbox = (Paths.get(".").toAbsolutePath().normalize().toString()) + "\\pdfbox_signed.pdf";
     public static final char[] password = "123456".toCharArray();
 
+    
+    
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) throws Exception {
         FileInputStream fis = new FileInputStream("keystore.p12");
-        FileOutputStream fos = new FileOutputStream(Itext.savePdfPATH);
+        FileOutputStream fos = new FileOutputStream(savePdfPATH);
         BouncyCastleProvider provider = new BouncyCastleProvider();
         Security.addProvider(provider);
 
@@ -77,11 +79,17 @@ public class pdfMain {
         //System.out.println("private key format: " + pk.getFormat());
         //System.out.println("privatekey algorithm: " + pk.getAlgorithm());
         //assinar e verificar parametros da assinatura usando Itext
-        Itext.signItext(pdfPATH, savePdfPATH, chain, pk, DigestAlgorithms.SHA1, provider.getName(), PdfSigner.CryptoStandard.CMS, "test Signature using itext", "Covilha");
+  //      Itext.signItext(pdfPATH, savePdfPATH, chain, pk, DigestAlgorithms.SHA1, provider.getName(), PdfSigner.CryptoStandard.CMS, "test Signature using itext", "Covilha");
 //        Itext.checkSignatureItext();
         //pdfbox 
-        PdfBox.signPDF();
+        
+        
+  //      PdfBox.signPDF();
 
+     //   WinKeyStoreTests.init();
+  
+          CardConnect.initCard();
+    
     }
 
 }

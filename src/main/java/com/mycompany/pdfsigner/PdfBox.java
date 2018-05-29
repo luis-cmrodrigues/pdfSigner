@@ -121,10 +121,10 @@ public class PdfBox {
 
         sig.setSignDate(Calendar.getInstance());
 
-        //signature options para fins de teste, aqui nao esta a ser usada
+        //signature options, used for defining signature max size and for setting the visible signature
         SignatureOptions sigOps = new SignatureOptions();
 
-        //------------------------  parte da visual signature
+        //------------------------  visual signature part
         PDAcroForm acroForm = doc.getDocumentCatalog().getAcroForm();
         if (acroForm == null) {
             System.out.println("WARNING: PDAcroForm is NULL");
@@ -137,9 +137,8 @@ public class PdfBox {
         }
 
         if (createVisibleSignatureTemplate(doc, 0, rect) == null) {
-            System.out.println("ERRO: a gerar a visible signature");
+            System.out.println("ERROR generating visible signature, createVisibleSignatureTemplate returned null !!");
         } else {
-
             sigOps.setVisualSignature(createVisibleSignatureTemplate(doc, 0, rect));
             sigOps.setPage(0);
             doc.addSignature(sig, sigOps);
@@ -342,6 +341,7 @@ public class PdfBox {
         }
     }
 
+    //creates PDR
     private static PDRectangle createSignatureRectangle(PDDocument doc, Rectangle2D humanRect) {
         float x = (float) humanRect.getX();
         float y = (float) humanRect.getY();
@@ -459,20 +459,19 @@ public class PdfBox {
                 }
 
                 // show background (just for debugging, to see the rect size + position)
-                cs.setNonStrokingColor(Color.yellow);
-                cs.addRect(0, 0, 10000, 10000);
-                cs.fill();
-
+                //cs.setNonStrokingColor(Color.yellow);
+                //cs.addRect(0, 0, 10000, 10000);
+                //cs.fill();
                 // show background image
                 // save and restore graphics if the image is too large and needs to be scaled
-                //cs.saveGraphicsState();
-                //cs.transform(Matrix.getScaleInstance(0.25f, 0.25f));
+                cs.saveGraphicsState();
+                cs.transform(Matrix.getScaleInstance(0.25f, 0.25f));
                 PDImageXObject img = PDImageXObject.createFromFileByExtension(imageFile, doc);
-                //confirmar que carregou imagem
-                System.out.println("Image height: " + Integer.toString(img.getHeight()) + " Image width: " + Integer.toString(img.getWidth()));
+                //confirmar que carregou imagem atraves de uma verificação das dimensoes
+                //System.out.println("Image height: " + Integer.toString(img.getHeight()) + " Image width: " + Integer.toString(img.getWidth()));
 
-                cs.drawImage(img, 50, 50);
-                //cs.restoreGraphicsState();
+                //cs.drawImage(img, 50, 50);        //a imagem não é necessária, testar se aparecem sempre os parametros
+                cs.restoreGraphicsState();
 
                 // show text
                 float fontSize = 10;
@@ -482,11 +481,11 @@ public class PdfBox {
                 cs.setNonStrokingColor(Color.black);
                 cs.newLineAtOffset(fontSize, height - leading);
                 cs.setLeading(leading);
-                cs.showText("(Signature very wide line 1)");
+                cs.showText("Digitally signed by: ");
                 cs.newLine();
-                cs.showText("(Signature very wide line 2)");
+                cs.showText("Date: ");
                 cs.newLine();
-                cs.showText("(Signature very wide line 3)");
+                //cs.showText("(Signature very wide line 3)");
                 cs.endText();
             } catch (Exception e) {
                 System.out.println("ERRO: NA PARTE DO CONTENT STREAM");
