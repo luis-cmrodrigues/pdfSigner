@@ -224,7 +224,7 @@ public class PdfBox {
         List<SignerInformation> newSigners = new ArrayList<>();
 
         for (SignerInformation signer : signerStore.getSigners()) {
-            newSigners.add(signTampStamp(signer, timeStamp));
+            newSigners.add(mergeSignerInfo(signer, timeStamp));
         }
 
         return CMSSignedData.replaceSigners(signedData, new SignerInformationStore(newSigners));
@@ -238,7 +238,7 @@ public class PdfBox {
      * @return
      * @throws IOException
      */
-    private static SignerInformation signTampStamp(SignerInformation signer, byte[] timeStamp) throws IOException {
+    private static SignerInformation mergeSignerInfo(SignerInformation signer, byte[] timeStamp) throws IOException {
         AttributeTable unsignedAttributes = signer.getUnsignedAttributes();
 
         ASN1EncodableVector vector = new ASN1EncodableVector();

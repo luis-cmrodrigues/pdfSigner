@@ -79,16 +79,14 @@ public class pdfMain {
         //System.out.println("private key format: " + pk.getFormat());
         //System.out.println("privatekey algorithm: " + pk.getAlgorithm());
         //assinar e verificar parametros da assinatura usando Itext
-  //      Itext.signItext(pdfPATH, savePdfPATH, chain, pk, DigestAlgorithms.SHA1, provider.getName(), PdfSigner.CryptoStandard.CMS, "test Signature using itext", "Covilha");
-//        Itext.checkSignatureItext();
+        Itext.signItext(pdfPATH, savePdfPATH, chain, pk, DigestAlgorithms.SHA1, provider.getName(), PdfSigner.CryptoStandard.CMS, "test Signature using itext", "Covilha");
+        Itext.checkSignatureItext();
         //pdfbox 
         
         
   //      PdfBox.signPDF();
 
      //   WinKeyStoreTests.init();
-  
-          CardConnect.initCard();
     
     }
 
